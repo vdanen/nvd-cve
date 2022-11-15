@@ -42,6 +42,23 @@ class CVE:
         if '** RESERVED **' in self.description:
             self.type = 'RESERVED'
 
+        self.cvss2_score    = 0
+        self.cvss2_severity = ''
+        self.cvss3_score    = 0
+        self.cvss3_severity = ''
+        self.scoring        = 0
+
+        for key in ['baseMetricV2', 'baseMetricV3']:
+            try:
+                if key == 'baseMetricV2':
+                    self.cvss2_score = float(self.cve_dict['impact'][key]['cvssV2']['baseScore'])
+                    self.cvss2_severity = self.cve_dict['impact'][key]['severity']
+                elif key == 'baseMetricV3':
+                    self.cvss3_score = float(self.cve_dict['impact'][key]['cvssV3']['baseScore'])
+                    self.cvss3_severity = self.cve_dict['impact'][key]['cvssV3']['baseSeverity']
+            except:
+                pass
+
     def __str__(self):
         return '{}: {}, {}'.format(self.cve,
                                    self.publishedDate,
@@ -116,6 +133,9 @@ def main():
                         help='Import data from NVD')
     parser.add_argument('--year-stats', dest='year_stats', action='store_true', default=False,
                         help='Display CVE count by year')
+    parser.add_argument('--severity-stats', dest='severity_stats', metavar='Vx', default='V3',
+                        help='Display CVE severity counts by year using either CVSS V2, V3 or V4')
+    parser.add_argument('--cve', dest='cve', action='append', help='Display CVE; can use multiple times')
 
     args = parser.parse_args()
 
@@ -139,7 +159,7 @@ def main():
                     c.execute('DROP TABLE cves')
                 except:
                     print('Initializing database')
-                c.execute('CREATE TABLE cves (Num int, Id text, lastModifiedDate text, publishedDate text, type text, description text, cve_dict text)')
+                c.execute('CREATE TABLE cves (Num int, Id text, lastModifiedDate text, publishedDate text, type text, severity3 text, severity2 text, description text, cve_dict text)')
                 line_count += 1
             else:
                 # tuple to add to database
@@ -148,18 +168,20 @@ def main():
                              row.lastModifiedDate,
                              row.publishedDate,
                              row.type,
+                             row.cvss3_severity,
+                             row.cvss2_severity,
                              json.dumps(row.description),
                              json.dumps(row.cve_dict)))
                 line_count += 1
 
-        c.executemany('INSERT INTO cves VALUES (?,?,?,?,?,?,?)', data)
+        c.executemany('INSERT INTO cves VALUES (?,?,?,?,?,?,?,?,?)', data)
         print(f'Imported {line_count-1} rows')
         conn.commit()
         conn.close()
         exit(0)
 
     if args.year_stats:
-        print('CVE counts per year')
+        print('Total CVE counts per year')
         years = list(range(start_year, current_year+1, 1))
         last_year = 0
         for y in years:
@@ -186,6 +208,52 @@ def main():
 
             print(f'{y}: {cve_valid} YoY: {cve_yoy:.2f}% (all={cve_all},reject={cve_rejected},disputed={cve_disputed},reserved={cve_reserved}')
 
+    if args.severity_stats:
+        if args.severity_stats not in ['V2', 'V3']:
+            # TODO: when CVSSv4 is starting to be used, this needs to be updated..
+            print('Invalid argument, expecting "V2", "V3" or "V4"')
+            exit(1)
+        print(f'CVE counts per year by CVSS {args.severity_stats} severity')
+        years = list(range(start_year, current_year+1, 1))
+
+        for y in years:
+            cve_critical = 0
+            cve_high     = 0
+            cve_medium   = 0
+            cve_low      = 0
+            cve_total    = 0
+            if args.severity_stats == 'V2':
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'CRITICAL']):
+                    cve_critical = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?',[f'%{y}%', 'HIGH']):
+                    cve_high = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'MEDIUM']):
+                    cve_medium = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'LOW']):
+                    cve_low = row[0]
+            elif args.severity_stats == 'V3':
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'CRITICAL']):
+                    cve_critical = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?',[f'%{y}%', 'HIGH']):
+                    cve_high = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'MEDIUM']):
+                    cve_medium = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'LOW']):
+                    cve_low = row[0]
+            else:
+                return
+
+            cve_total = cve_critical + cve_high + cve_medium + cve_low
+            print(f'{y}: CRITICAL={cve_critical},HIGH={cve_high},MEDIUM={cve_medium},LOW={cve_low}  TOTAL={cve_total}')
+
+    if args.cve:
+        for x in args.cve:
+            for row in c.execute('SELECT cve_dict FROM cves WHERE Id = ?', [x]):
+                print(row)
+                cve = CVE(json.loads(row[0]))
+                print(cve.cve)
+                print(cve.cvss3_score)
+                print(cve.cvss3_severity)
 
 if __name__ == '__main__':
     main()
