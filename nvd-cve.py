@@ -3,8 +3,9 @@
 import argparse
 import datetime
 import gzip
-import os
 import json
+import sqlite3
+import os
 import urllib.request
 
 start_year   = 1999
@@ -32,6 +33,14 @@ class CVE:
         self.description = 'No description info'
         if len(descriptions) > 0:
             self.description = '|'.join(descriptions)
+
+        self.type = 'VALID'
+        if '** REJECT **' in self.description:
+            self.type = 'REJECT'
+        if '** DISPUTED **' in self.description:
+            self.type = 'DISPUTED'
+        if '** RESERVED **' in self.description:
+            self.type = 'RESERVED'
 
     def __str__(self):
         return '{}: {}, {}'.format(self.cve,
@@ -67,8 +76,6 @@ def download_gzips():
         i = i + 1
         years.append(f'{fname}{i}.json.gz')
 
-#    print(years)
-
     downloaded = []
 
     for gzfile in years:
@@ -96,10 +103,7 @@ def parse_nvd(gzfile):
         return None
 
     with gzip.open(gzfile, 'rb') as f:
-#        print(f'Importing records from {gzfile}')
         j = json.loads(f.read())
-#        records = len(j['CVE_Items'])
-#        print(f'Number of CVE entries loaded: {records}')
 
         cve_entries = [CVE(cve_dict) for cve_dict in j['CVE_Items']]
 
@@ -108,30 +112,79 @@ def parse_nvd(gzfile):
 
 def main():
     parser = argparse.ArgumentParser(description='NVD parsing tool')
+    parser.add_argument('--import', dest='importcve', action='store_true', default=False,
+                        help='Import data from NVD')
     parser.add_argument('--year-stats', dest='year_stats', action='store_true', default=False,
                         help='Display CVE count by year')
 
     args = parser.parse_args()
 
-    print('Loading and downloading NVD entries ')
-    gzips = download_gzips()
-    cves  = []
+    conn = sqlite3.connect('nvdcves.db')
+    c    = conn.cursor()
 
-    for x in gzips:
-        # load local and downloaded files
-        cves.extend(parse_nvd(x))
+    if args.importcve:
+        print('Loading and downloading NVD entries ')
+        gzips = download_gzips()
+        cves  = []
 
-#    print(f'Found {len(cves)} entries in CVE list')
+        for x in gzips:
+            # load local and downloaded files
+            cves.extend(parse_nvd(x))
+
+        data       = []
+        line_count = 0
+        for row in cves:
+            if line_count == 0:
+                try:
+                    c.execute('DROP TABLE cves')
+                except:
+                    print('Initializing database')
+                c.execute('CREATE TABLE cves (Num int, Id text, lastModifiedDate text, publishedDate text, type text, description text, cve_dict text)')
+                line_count += 1
+            else:
+                # tuple to add to database
+                data.append((line_count,
+                             row.cve,
+                             row.lastModifiedDate,
+                             row.publishedDate,
+                             row.type,
+                             json.dumps(row.description),
+                             json.dumps(row.cve_dict)))
+                line_count += 1
+
+        c.executemany('INSERT INTO cves VALUES (?,?,?,?,?,?,?)', data)
+        print(f'Imported {line_count-1} rows')
+        conn.commit()
+        conn.close()
+        exit(0)
 
     if args.year_stats:
         print('CVE counts per year')
         years = list(range(start_year, current_year+1, 1))
+        last_year = 0
         for y in years:
-            x = 0
-            for c in cves:
-                if str(y) in c.publishedDate:
-                    x += 1
-            print(f'  {y}: {x}')
+            cve_all      = 0
+            cve_rejected = 0
+            cve_disputed = 0
+            cve_reserved = 0
+            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ?', [f'%{y}%']):
+                cve_all = row[0]
+            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'REJECT']):
+                cve_rejected = row[0]
+            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'DISPUTED']):
+                cve_disputed = row[0]
+            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'RESERVED']):
+                cve_reserved = row[0]
+            cve_valid = cve_all - cve_rejected - cve_disputed - cve_reserved
+
+            if last_year > 0:
+                # calculate YoY growth
+                cve_yoy = ((cve_valid - last_year) / last_year) * 100
+            else:
+                cve_yoy = 0
+            last_year = cve_valid
+
+            print(f'{y}: {cve_valid} YoY: {cve_yoy:.2f}% (all={cve_all},reject={cve_rejected},disputed={cve_disputed},reserved={cve_reserved}')
 
 
 if __name__ == '__main__':
