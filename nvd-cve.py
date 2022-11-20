@@ -211,19 +211,20 @@ def main():
 
         last_year = 0
         for y in years:
-            cve_all      = 0
+            cve_valid    = 0
             cve_rejected = 0
             cve_disputed = 0
             cve_reserved = 0
-            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ?', [f'%{y}%']):
-                cve_all = row[0]
+
+            for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'VALID']):
+                cve_valid = row[0]
             for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'REJECT']):
                 cve_rejected = row[0]
             for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'DISPUTED']):
                 cve_disputed = row[0]
             for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ?', [f'%{y}%', 'RESERVED']):
                 cve_reserved = row[0]
-            cve_valid = cve_all - cve_rejected - cve_disputed - cve_reserved
+            cve_all = cve_valid + cve_rejected + cve_disputed + cve_reserved
 
             if last_year > 0:
                 # calculate YoY growth
@@ -251,38 +252,45 @@ def main():
             cve_high     = 0
             cve_medium   = 0
             cve_low      = 0
+            cve_none     = 0
             if args.severity_stats == 'V2':
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'CRITICAL']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity2 = ?', [f'%{y}%', 'VALID', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity2 = ?', [f'%{y}%', 'VALID', 'HIGH']):
                     cve_high = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'MEDIUM']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity2 = ?', [f'%{y}%', 'VALID', 'MEDIUM']):
                     cve_medium = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'LOW']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity2 = ?', [f'%{y}%', 'VALID', 'LOW']):
                     cve_low = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity2 = ?', [f'%{y}%', 'VALID', 'NONE']):
+                    cve_none = row[0]
             elif args.severity_stats == 'V3':
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'CRITICAL']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity3 = ?', [f'%{y}%', 'VALID', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity3 = ?', [f'%{y}%', 'VALID', 'HIGH']):
                     cve_high = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'MEDIUM']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity3 = ?', [f'%{y}%', 'VALID', 'MEDIUM']):
                     cve_medium = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'LOW']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity3 = ?', [f'%{y}%', 'VALID', 'LOW']):
                     cve_low = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND severity3 = ?', [f'%{y}%', 'VALID', 'NONE']):
+                    cve_none = row[0]
             elif args.severity_stats == 'ALL':
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'CRITICAL']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND impact = ?', [f'%{y}%', 'VALID', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND impact = ?', [f'%{y}%', 'VALID', 'HIGH']):
                     cve_high = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'MEDIUM']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND impact = ?', [f'%{y}%', 'VALID', 'MEDIUM']):
                     cve_medium = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'LOW']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND impact = ?', [f'%{y}%', 'VALID', 'LOW']):
                     cve_low = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND type = ? AND impact = ?', [f'%{y}%', 'VALID', 'NONE']):
+                    cve_none = row[0]
             else:
                 return
 
-            cve_total = cve_critical + cve_high + cve_medium + cve_low
-            print(f'{y}: CRITICAL={cve_critical},HIGH={cve_high},MEDIUM={cve_medium},LOW={cve_low}  TOTAL={cve_total}')
+            cve_total = cve_critical + cve_high + cve_medium + cve_low + cve_none
+            print(f'{y}: CRITICAL={cve_critical},HIGH={cve_high},MEDIUM={cve_medium},LOW={cve_low},NONE={cve_none}  TOTAL={cve_total}')
 
     if args.cve:
         for x in args.cve:
