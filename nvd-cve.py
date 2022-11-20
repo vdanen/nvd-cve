@@ -144,8 +144,9 @@ def main():
                         help='Import data from NVD')
     parser.add_argument('--year-stats', dest='year_stats', action='store_true', default=False,
                         help='Display CVE count by year')
-    parser.add_argument('--severity-stats', dest='severity_stats', metavar='Vx', default='ALL',
+    parser.add_argument('--severity-stats', dest='severity_stats', metavar='Vx', default=None,
                         help='Display CVE severity counts by year using either CVSS V2, V3, V4 or ALL to print the highest of any')
+    parser.add_argument('--year', dest='const_year', metavar='YEAR', default=None, help='Constrain results to YEAR')
     parser.add_argument('--cve', dest='cve', action='append', help='Display CVE; can use multiple times')
 
     args = parser.parse_args()
@@ -194,7 +195,11 @@ def main():
 
     if args.year_stats:
         print('Total CVE counts per year')
-        years = list(range(start_year, current_year+1, 1))
+        if args.const_year:
+            years = [args.const_year]
+        else:
+            years = list(range(start_year, current_year+1, 1))
+
         last_year = 0
         for y in years:
             cve_all      = 0
@@ -226,7 +231,11 @@ def main():
             print('Invalid argument, expecting "V2", "V3", "V4" or "ALL"')
             exit(1)
         print(f'CVE counts per year by CVSS {args.severity_stats} severity')
-        years = list(range(start_year, current_year+1, 1))
+
+        if args.const_year:
+            years = [args.const_year]
+        else:
+            years = list(range(start_year, current_year+1, 1))
 
         for y in years:
             cve_critical = 0
