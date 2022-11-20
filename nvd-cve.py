@@ -47,17 +47,28 @@ class CVE:
         self.cvss3_score    = 0
         self.cvss3_severity = ''
         self.scoring        = 0
+        self.impact         = 'NONE'
 
+        impact_weight  = {'LOW': 1, 'MEDIUM': 2, 'HIGH': 3, 'CRITICAL': 4}
+        impact_highest = 0
         for key in ['baseMetricV2', 'baseMetricV3']:
             try:
                 if key == 'baseMetricV2':
                     self.cvss2_score = float(self.cve_dict['impact'][key]['cvssV2']['baseScore'])
                     self.cvss2_severity = self.cve_dict['impact'][key]['severity']
+                    if impact_weight[self.cvss2_severity] > impact_highest:
+                        impact_highest = impact_weight[self.cvss2_severity]
                 elif key == 'baseMetricV3':
                     self.cvss3_score = float(self.cve_dict['impact'][key]['cvssV3']['baseScore'])
                     self.cvss3_severity = self.cve_dict['impact'][key]['cvssV3']['baseSeverity']
+                    if impact_weight[self.cvss3_severity] > impact_highest:
+                        impact_highest = impact_weight[self.cvss3_severity]
             except:
                 pass
+
+        for k, v in impact_weight.items():
+            if impact_weight[k] == impact_highest:
+                self.impact = k
 
     def __str__(self):
         return '{}: {}, {}'.format(self.cve,
@@ -133,8 +144,8 @@ def main():
                         help='Import data from NVD')
     parser.add_argument('--year-stats', dest='year_stats', action='store_true', default=False,
                         help='Display CVE count by year')
-    parser.add_argument('--severity-stats', dest='severity_stats', metavar='Vx', default='V3',
-                        help='Display CVE severity counts by year using either CVSS V2, V3 or V4')
+    parser.add_argument('--severity-stats', dest='severity_stats', metavar='Vx', default='ALL',
+                        help='Display CVE severity counts by year using either CVSS V2, V3, V4 or ALL to print the highest of any')
     parser.add_argument('--cve', dest='cve', action='append', help='Display CVE; can use multiple times')
 
     args = parser.parse_args()
@@ -159,7 +170,7 @@ def main():
                     c.execute('DROP TABLE cves')
                 except:
                     print('Initializing database')
-                c.execute('CREATE TABLE cves (Num int, Id text, lastModifiedDate text, publishedDate text, type text, severity3 text, severity2 text, description text, cve_dict text)')
+                c.execute('CREATE TABLE cves (Num int, Id text, lastModifiedDate text, publishedDate text, type text, severity3 text, severity2 text, impact text, description text, cve_dict text)')
                 line_count += 1
             else:
                 # tuple to add to database
@@ -170,11 +181,12 @@ def main():
                              row.type,
                              row.cvss3_severity,
                              row.cvss2_severity,
+                             row.impact,
                              json.dumps(row.description),
                              json.dumps(row.cve_dict)))
                 line_count += 1
 
-        c.executemany('INSERT INTO cves VALUES (?,?,?,?,?,?,?,?,?)', data)
+        c.executemany('INSERT INTO cves VALUES (?,?,?,?,?,?,?,?,?,?)', data)
         print(f'Imported {line_count-1} rows')
         conn.commit()
         conn.close()
@@ -206,12 +218,12 @@ def main():
                 cve_yoy = 0
             last_year = cve_valid
 
-            print(f'{y}: {cve_valid} YoY: {cve_yoy:.2f}% (all={cve_all},reject={cve_rejected},disputed={cve_disputed},reserved={cve_reserved}')
+            print(f'{y}: {cve_valid} YoY: {cve_yoy:.2f}% (all={cve_all},reject={cve_rejected},disputed={cve_disputed},reserved={cve_reserved})')
 
     if args.severity_stats:
-        if args.severity_stats not in ['V2', 'V3']:
+        if args.severity_stats not in ['V2', 'V3', 'ALL']:
             # TODO: when CVSSv4 is starting to be used, this needs to be updated..
-            print('Invalid argument, expecting "V2", "V3" or "V4"')
+            print('Invalid argument, expecting "V2", "V3", "V4" or "ALL"')
             exit(1)
         print(f'CVE counts per year by CVSS {args.severity_stats} severity')
         years = list(range(start_year, current_year+1, 1))
@@ -239,6 +251,15 @@ def main():
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'MEDIUM']):
                     cve_medium = row[0]
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'LOW']):
+                    cve_low = row[0]
+            elif args.severity_stats == 'ALL':
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'CRITICAL']):
+                    cve_critical = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?',[f'%{y}%', 'HIGH']):
+                    cve_high = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'MEDIUM']):
+                    cve_medium = row[0]
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'LOW']):
                     cve_low = row[0]
             else:
                 return
