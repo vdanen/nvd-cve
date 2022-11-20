@@ -13,6 +13,7 @@ start_year   = 1999
 #current_year = 2004
 current_year = int(datetime.datetime.today().strftime('%Y'))
 
+
 class DownloadProgressBar(tqdm):
     def update_to(self, b=1, bsize=1, tsize=None):
         if tsize is not None:
@@ -250,11 +251,10 @@ def main():
             cve_high     = 0
             cve_medium   = 0
             cve_low      = 0
-            cve_total    = 0
             if args.severity_stats == 'V2':
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?',[f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'HIGH']):
                     cve_high = row[0]
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity2 = ?', [f'%{y}%', 'MEDIUM']):
                     cve_medium = row[0]
@@ -263,7 +263,7 @@ def main():
             elif args.severity_stats == 'V3':
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?',[f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'HIGH']):
                     cve_high = row[0]
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND severity3 = ?', [f'%{y}%', 'MEDIUM']):
                     cve_medium = row[0]
@@ -272,7 +272,7 @@ def main():
             elif args.severity_stats == 'ALL':
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'CRITICAL']):
                     cve_critical = row[0]
-                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?',[f'%{y}%', 'HIGH']):
+                for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'HIGH']):
                     cve_high = row[0]
                 for row in c.execute('SELECT COUNT(Num) FROM cves WHERE publishedDate LIKE ? AND impact = ?', [f'%{y}%', 'MEDIUM']):
                     cve_medium = row[0]
@@ -292,6 +292,7 @@ def main():
                 print(cve.cve)
                 print(cve.cvss3_score)
                 print(cve.cvss3_severity)
+
 
 if __name__ == '__main__':
     main()
