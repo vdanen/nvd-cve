@@ -5,6 +5,7 @@ import datetime
 import gzip
 import json
 import sqlite3
+import textwrap
 import os
 import urllib.request
 from tqdm import tqdm
@@ -51,8 +52,10 @@ class CVE:
             self.type = 'RESERVED'
 
         self.cvss2_score    = 0
+        self.cvss2_metrics  = ''
         self.cvss2_severity = ''
         self.cvss3_score    = 0
+        self.cvss3_metrics  = ''
         self.cvss3_severity = ''
         self.scoring        = 0
         self.impact         = 'NONE'
@@ -62,12 +65,14 @@ class CVE:
         for key in ['baseMetricV2', 'baseMetricV3']:
             try:
                 if key == 'baseMetricV2':
-                    self.cvss2_score = float(self.cve_dict['impact'][key]['cvssV2']['baseScore'])
+                    self.cvss2_score    = float(self.cve_dict['impact'][key]['cvssV2']['baseScore'])
+                    self.cvss2_metrics  = self.cve_dict['impact'][key]['cvssV2']['vectorString']
                     self.cvss2_severity = self.cve_dict['impact'][key]['severity']
                     if impact_weight[self.cvss2_severity] > impact_highest:
                         impact_highest = impact_weight[self.cvss2_severity]
                 elif key == 'baseMetricV3':
-                    self.cvss3_score = float(self.cve_dict['impact'][key]['cvssV3']['baseScore'])
+                    self.cvss3_score    = float(self.cve_dict['impact'][key]['cvssV3']['baseScore'])
+                    self.cvss3_metrics  = self.cve_dict['impact'][key]['cvssV3']['vectorString']
                     self.cvss3_severity = self.cve_dict['impact'][key]['cvssV3']['baseSeverity']
                     if impact_weight[self.cvss3_severity] > impact_highest:
                         impact_highest = impact_weight[self.cvss3_severity]
@@ -295,11 +300,29 @@ def main():
     if args.cve:
         for x in args.cve:
             for row in c.execute('SELECT cve_dict FROM cves WHERE Id = ?', [x]):
-                print(row)
+                type = ''
+
                 cve = CVE(json.loads(row[0]))
-                print(cve.cve)
-                print(cve.cvss3_score)
-                print(cve.cvss3_severity)
+                #print(vars(cve))
+
+                if cve.type != 'VALID':
+                    type = f'** {cve.type} **'
+
+                if cve.cvss3_severity:
+                    print(f'{cve.cve} - {type} {cve.cvss3_severity}, {cve.cvss3_score} ({cve.cvss3_metrics})')
+                elif cve.cvss2_severity:
+                    print(f'{cve.cve} - {type} {cve.cvss2_severity}, {cve.cvss2_score} (CVSS:2.0/{cve.cvss2_metrics})')
+                else:
+                    print(f'{cve.cve} {type}')
+
+                print(f'Published   : {cve.publishedDate}')
+                if cve.publishedDate != cve.lastModifiedDate:
+                    print(f'Last updated: {cve.lastModifiedDate}')
+
+                width_size = os.get_terminal_size()
+                for line in textwrap.wrap(cve.description, width=(width_size.columns - 20), initial_indent='    ', subsequent_indent='    '):
+                    print(line)
+                print()
 
 
 if __name__ == '__main__':
