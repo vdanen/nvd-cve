@@ -7,10 +7,17 @@ import json
 import sqlite3
 import os
 import urllib.request
+from tqdm import tqdm
 
 start_year   = 1999
 #current_year = 2004
 current_year = int(datetime.datetime.today().strftime('%Y'))
+
+class DownloadProgressBar(tqdm):
+    def update_to(self, b=1, bsize=1, tsize=None):
+        if tsize is not None:
+            self.total = tsize
+        self.update(b * bsize - self.n)
 
 
 class CVE:
@@ -84,7 +91,8 @@ def download(url, localfile):
 
     print(f'Downloading {url}...')
     try:
-        urllib.request.urlretrieve(url, localfile)
+        with DownloadProgressBar(unit='B', unit_scale=True, miniters=1, desc=url.split('/')[-1]) as t:
+            urllib.request.urlretrieve(url, filename=localfile, reporthook=t.update_to)
         return localfile
     except Exception as e:
         print(f'Failed to download {url}')
